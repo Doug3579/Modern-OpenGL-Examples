@@ -1,0 +1,184 @@
+/* This program is deliberately monolithic in structure (having only one subprogram other
+ * than main) with the intent of making the flow of OpenGL commands easier to see. 
+ *  
+ * This demo shows the use of two VBOs (vertices and color) in a single VAO, time
+ * driven positioning using System.nanoTime(), Uniform Variables to send changing data to 
+ * the shaders, finding attribute array and uniform variable locations, and embedded 
+ * shader source code.
+ */
+package org.DFB.vao_demo_indices;
+
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.LWJGLException;
+import org.lwjgl.opengl.ContextAttribs;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.DisplayMode;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL30;
+import org.lwjgl.opengl.PixelFormat;
+
+public class VAODemo1 {
+	private static final int screenWidth = 800;
+	private static final int screenHeight = 600;
+	private static int xOffsetLoc=0;
+	private static int yOffsetLoc=0;
+	
+	private static int colorLoc=0;
+	private static int positionLoc=0;
+	private static float yOffset=0f;
+	private static float xOffset=0f;
+	private static long time=0, initialTime=0, dtime=0;
+	private static float t0=.15f;
+	
+	private static String vertexShader = 
+			"#version 150 core \n"+
+			"in vec3 in_Position;"+
+			"uniform vec3 in_Color;"+
+			"uniform float in_xOffset;"+
+			"uniform float in_yOffset;"+
+			"out vec4 pass_Color; "+
+			"void main(void) {"+
+			"gl_Position = vec4(in_Position.x+in_xOffset, in_Position.y+in_yOffset, 0f, 1.0f);"+
+			"pass_Color = vec4(in_Color, 1.0);"+
+			"}\n";
+	
+	private static String fragmentShader = 
+			"#version 150 core \n"+
+			"in vec4 pass_Color;"+
+			"out vec4 out_Color;"+
+			"void main(void) {"+
+			"out_Color = pass_Color;"+
+			"}\n";
+
+	public static void main(String[] args) {
+
+		final int FLOATS_PER_VERT = 3;
+		final long FIRST_INDEX = 0L;
+		final int TIGHTLY_PACKED = 0;
+		
+		initialTime = (System.nanoTime())>>24;
+
+		// create the LWJGL display; this creates the OpenGL context (important!)
+		ContextAttribs attribs = new ContextAttribs(3,2)
+			.withForwardCompatible(true)
+			.withProfileCore(true);
+		try {
+			Display.setDisplayMode(new DisplayMode(screenWidth, screenHeight));
+			Display.create(new PixelFormat(), attribs);
+		}
+		catch (LWJGLException e) { e.printStackTrace(); }
+
+		GL11.glViewport(0, 0, screenWidth, screenHeight);
+
+		// compile and link the shaders
+		int vertexShaderID = loadShader(vertexShader, GL20.GL_VERTEX_SHADER);
+		int fragmentShaderID = loadShader(fragmentShader, GL20.GL_FRAGMENT_SHADER);
+		int programID = GL20.glCreateProgram();
+		GL20.glAttachShader(programID, vertexShaderID);
+		GL20.glAttachShader(programID, fragmentShaderID);
+		GL20.glLinkProgram(programID);
+		GL20.glValidateProgram(programID);
+
+		//Get the locations of the shader variables
+		positionLoc = GL20.glGetAttribLocation(programID, "in_Position");
+		System.out.println("in_Position at "+positionLoc);
+		xOffsetLoc = GL20.glGetUniformLocation(programID, "in_xOffset");
+		System.out.println("in_xOffset at "+xOffsetLoc);
+		yOffsetLoc = GL20.glGetUniformLocation(programID, "in_yOffset");
+		System.out.println("in_yOffset at "+yOffsetLoc);
+		colorLoc = GL20.glGetUniformLocation(programID, "in_Color");
+		System.out.println("in_Color at "+colorLoc);
+		
+		GL20.glUseProgram(programID);
+		GL20.glUniform3f(colorLoc, 0f, 0f, 0.7f);
+		GL20.glUseProgram(0);
+
+		float[] vertices = new float [] {
+				0.20f, 0.1f, 0f,  //V0
+				0.00f, 000f, 0f,  //V1
+				0.20f, -.1f, 0f,  //V2
+
+				0.25f, 0.07f, 0f, //V3
+				0.15f, 0000f, 0f, //V4
+				0.25f, -.07f, 0f, //V5
+		};
+		
+		int[] indices = new int[] {
+				0,1,2, 3,4,5,
+		};
+
+		//create the vertex data VBO
+		int vvboID = GL15.glGenBuffers();
+		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vvboID);
+		FloatBuffer vbuffer = BufferUtils.createFloatBuffer(vertices.length);
+		vbuffer.put(vertices);
+		vbuffer.flip();
+		GL15.glBufferData(GL15.GL_ARRAY_BUFFER, vbuffer, GL15.GL_STATIC_DRAW);
+
+		//create the element (index) data VBO
+		int ivboID = GL15.glGenBuffers();
+		GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, ivboID);
+		IntBuffer ibuffer = BufferUtils.createIntBuffer(indices.length);
+		ibuffer.put(indices);
+		ibuffer.flip();
+		GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, ibuffer, GL15.GL_STATIC_DRAW);
+
+		//allocate and bind a VAO
+		int vaoID = GL30.glGenVertexArrays();
+		GL30.glBindVertexArray(vaoID);
+		
+		GL20.glEnableVertexAttribArray(positionLoc);
+		GL20.glVertexAttribPointer(positionLoc, FLOATS_PER_VERT, GL11.GL_FLOAT, false, TIGHTLY_PACKED, FIRST_INDEX);
+
+		GL30.glBindVertexArray(0); //unbind the VAO
+
+		GL11.glClearColor(0f, .2f, .6f, 1f);
+
+		while(!Display.isCloseRequested()) {
+			GL11.glClear(GL11.GL_COLOR_BUFFER_BIT|GL11.GL_DEPTH_BUFFER_BIT);
+			time = System.nanoTime()>>24;
+			dtime = time-initialTime;
+			initialTime=time;
+			t0-=dtime/85.3217f;
+			if (t0<-1.2) t0+=2.2f;
+			yOffset = (float)(.9f*Math.sin(time%(360)*Math.PI/180));
+			xOffset = t0;
+			
+			GL20.glUseProgram(programID);
+			GL30.glBindVertexArray(vaoID);
+			GL20.glUniform1f(yOffsetLoc, yOffset);
+			GL20.glUniform1f(xOffsetLoc, xOffset);
+			GL20.glUniform3f(colorLoc, .7f, 0f, 0f);
+			GL11.glDrawElements(GL11.GL_TRIANGLES, indices.length, GL11.GL_UNSIGNED_INT, FIRST_INDEX);
+
+			Display.update();
+			Display.sync(120);
+		}
+
+		GL20.glDisableVertexAttribArray(positionLoc);
+		GL20.glDetachShader(programID, vertexShaderID);
+		GL20.glDetachShader(programID, fragmentShaderID);
+		GL20.glDeleteShader(vertexShaderID);
+		GL20.glDeleteShader(fragmentShaderID);
+		GL20.glDeleteProgram(programID);
+		Display.destroy();
+	}
+
+	private static int loadShader(String shaderSource, int type) {
+		int shaderID = GL20.glCreateShader(type);
+		GL20.glShaderSource(shaderID, shaderSource);
+		GL20.glCompileShader(shaderID);
+		if (GL20.glGetShader(shaderID, GL20.GL_COMPILE_STATUS)==GL11.GL_FALSE) {
+			System.out.println(GL20.glGetShaderInfoLog(shaderID, 500));
+			System.err.println("Could not compile shader");
+			System.exit(-1);
+		}
+		return shaderID;
+	}
+}
+
