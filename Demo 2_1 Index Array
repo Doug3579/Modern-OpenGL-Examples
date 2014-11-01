@@ -1,10 +1,9 @@
-/* This program is deliberately monolithic in structure (having only one subprogram other
- * than main) with the intent of making the flow of OpenGL commands easier to see. 
+/* This program is deliberately monolithic in structure (having only one subprogram other than main) with the intent 
+ * of making the flow of OpenGL commands easier to see. 
  *  
- * This demo shows the use of two VBOs (vertices and color) in a single VAO, time
- * driven positioning using System.nanoTime(), Uniform Variables to send changing data to 
- * the shaders, finding attribute array and uniform variable locations, and embedded 
- * shader source code.
+ * This demo shows the use of two VBOs (vertices and color) in a single VAO, an index vbo, Uniform Variables to send 
+ * changing data to the shaders, finding attribute array and uniform variable locations, time driven positioning using 
+ * System.nanoTime(), and embedded shader source code.
  */
 package org.DFB.vao_demo_indices;
 
@@ -144,11 +143,10 @@ public class VAODemo1 {
 			time = System.nanoTime()>>24;
 			dtime = time-initialTime;
 			initialTime=time;
-			t0-=dtime/85.3217f;
-			if (t0<-1.2) t0+=2.2f;
+			xOffset-=dtime/100f;
+			if (xOffset<-1.2) xOffset+=2.2f;
 			yOffset = (float)(.9f*Math.sin(time%(360)*Math.PI/180));
-			xOffset = t0;
-			
+
 			GL20.glUseProgram(programID);
 			GL30.glBindVertexArray(vaoID);
 			GL20.glUniform1f(yOffsetLoc, yOffset);
