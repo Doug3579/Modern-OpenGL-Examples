@@ -1,9 +1,9 @@
-/* This program is deliberately monolithic in structure (having only one subprogram other than main) with the intent 
- * of making the flow of OpenGL commands easier to see. 
+/* This program is deliberately monolithic in structure (having only one subprogram other than main) with 
+ * the intent of making the flow of OpenGL commands easier to see. 
  *  
- * This demo shows the use of two VBOs (vertices and color) in a single VAO, an index vbo, Uniform Variables to send 
- * changing data to the shaders, finding attribute array and uniform variable locations, time driven positioning using 
- * System.nanoTime(), and embedded shader source code.
+ * This demo shows the use of two VBOs (vertices and color) in a single VAO, an index buffer, Uniform Variables 
+ * to send changing data to the shaders, finding attribute array and uniform variable locations, embedded 
+ * shader source code and time driven positioning using System.nanoTime()
  */
 package org.DFB.vao_demo_indices;
 
@@ -24,13 +24,15 @@ import org.lwjgl.opengl.PixelFormat;
 public class VAODemo1 {
 	private static final int screenWidth = 800;
 	private static final int screenHeight = 600;
+	
 	private static int xOffsetLoc=0;
 	private static int yOffsetLoc=0;
-	
 	private static int colorLoc=0;
 	private static int positionLoc=0;
+	
 	private static float yOffset=0f;
 	private static float xOffset=0f;
+	
 	private static long time=0, initialTime=0, dtime=0;
 	private static float t0=.15f;
 	
@@ -42,16 +44,16 @@ public class VAODemo1 {
 			"uniform float in_yOffset;"+
 			"out vec4 pass_Color; "+
 			"void main(void) {"+
-			"gl_Position = vec4(in_Position.x+in_xOffset, in_Position.y+in_yOffset, 0f, 1.0f);"+
+			"   gl_Position = vec4(in_Position.x+in_xOffset, in_Position.y+in_yOffset, 0f, 1.0f);"+
 			"pass_Color = vec4(in_Color, 1.0);"+
 			"}\n";
-	
+		
 	private static String fragmentShader = 
 			"#version 150 core \n"+
 			"in vec4 pass_Color;"+
 			"out vec4 out_Color;"+
 			"void main(void) {"+
-			"out_Color = pass_Color;"+
+			"   out_Color = vec4(0.9, 0.9, 0.0, 1.0);"+
 			"}\n";
 
 	public static void main(String[] args) {
@@ -111,6 +113,10 @@ public class VAODemo1 {
 				0,1,2, 3,4,5,
 		};
 
+		//allocate and bind a VAO
+		int vaoID = GL30.glGenVertexArrays();
+		GL30.glBindVertexArray(vaoID);
+		
 		//create the vertex data VBO
 		int vvboID = GL15.glGenBuffers();
 		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vvboID);
@@ -127,10 +133,6 @@ public class VAODemo1 {
 		ibuffer.flip();
 		GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, ibuffer, GL15.GL_STATIC_DRAW);
 
-		//allocate and bind a VAO
-		int vaoID = GL30.glGenVertexArrays();
-		GL30.glBindVertexArray(vaoID);
-		
 		GL20.glEnableVertexAttribArray(positionLoc);
 		GL20.glVertexAttribPointer(positionLoc, FLOATS_PER_VERT, GL11.GL_FLOAT, false, TIGHTLY_PACKED, FIRST_INDEX);
 
@@ -143,16 +145,19 @@ public class VAODemo1 {
 			time = System.nanoTime()>>24;
 			dtime = time-initialTime;
 			initialTime=time;
-			xOffset-=dtime/100f;
-			if (xOffset<-1.2) xOffset+=2.2f;
+			t0-=dtime/85.3217f;
+			if (t0<-1.2) t0+=2.2f;
 			yOffset = (float)(.9f*Math.sin(time%(360)*Math.PI/180));
-
+			xOffset = t0;
+			
 			GL20.glUseProgram(programID);
 			GL30.glBindVertexArray(vaoID);
 			GL20.glUniform1f(yOffsetLoc, yOffset);
 			GL20.glUniform1f(xOffsetLoc, xOffset);
 			GL20.glUniform3f(colorLoc, .7f, 0f, 0f);
 			GL11.glDrawElements(GL11.GL_TRIANGLES, indices.length, GL11.GL_UNSIGNED_INT, FIRST_INDEX);
+			GL30.glBindVertexArray(0); //unbind (or detach) the VAO
+			GL20.glUseProgram(0);
 
 			Display.update();
 			Display.sync(120);
