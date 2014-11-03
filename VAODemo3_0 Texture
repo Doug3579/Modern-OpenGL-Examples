@@ -1,0 +1,213 @@
+/* This program is deliberately monolithic in structure (having only one subprogram other
+ * than main) with the intent of making the flow of OpenGL commands easier to follow. 
+ *  
+ * This demo shows the use of two VBOs (vertices and texture coordinates), an index buffer, a 
+ * texture buffer and a VAO. Textures are usually obtained from image files but in this case it is 
+ * procedurally generated. The texture is displayed on a static rectangle (actually 
+ * two adjacent right triangles). The embedded shader source code is kind of cool for experimenting.
+ */
+package org.DFB.vao_demo_indices;
+
+import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.LWJGLException;
+import org.lwjgl.opengl.ContextAttribs;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.DisplayMode;
+import org.lwjgl.opengl.PixelFormat;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL15;
+import org.lwjgl.opengl.GL20;
+import org.lwjgl.opengl.GL30;
+
+public class VAODemo3_0 {
+	private static final int screenWidth = 800;
+	private static final int screenHeight = 600;
+
+	private static final String vertexShader = 
+			"#version 150 core \n"
+			+ "in vec2 in_Position; "
+			+ "in vec2 in_Texcoords; "
+			+ "out vec2 pass_Texcoords; "
+			+ "void main(void) { "
+			+ "gl_Position = vec4(in_Position.x, in_Position.y, 0.0, 1.0); "
+			+ "pass_Texcoords = in_Texcoords; "
+			+ "}";
+	private static final String fragmentShader =
+			"#version 150 core \n"
+			+ "in vec2 pass_Texcoords; "
+			+ "out vec4 out_Color; "
+			+ "uniform sampler2D unif_tex; "
+			+ "void main(void) { "
+			+ "out_Color = texture(unif_tex, pass_Texcoords); "
+			+ "}";	
+
+
+	public static void main(String[] args) {
+		// create the LWJGL display; this creates the OpenGL context (important!)
+		ContextAttribs attribs = new ContextAttribs(3,2)
+			.withForwardCompatible(true)
+			.withProfileCore(true);
+		try {
+			Display.setDisplayMode(new DisplayMode(screenWidth, screenHeight));
+			Display.create(new PixelFormat(), attribs);
+		}
+		catch (LWJGLException e) { e.printStackTrace(); }
+
+		GL11.glViewport(0, 0, screenWidth, screenHeight);
+
+		// compile and link the shaders
+		int vertexShaderID = loadShader(vertexShader, GL20.GL_VERTEX_SHADER);
+		int fragmentShaderID = loadShader(fragmentShader, GL20.GL_FRAGMENT_SHADER);
+		int programID = GL20.glCreateProgram();
+		GL20.glAttachShader(programID, vertexShaderID);
+		GL20.glAttachShader(programID, fragmentShaderID);
+		GL20.glLinkProgram(programID);
+		GL20.glValidateProgram(programID);
+		
+		//delete and detach (or vice versa) the shaders after linking the program.
+		//This is good programming practice because it releases memory for reuse.
+		GL20.glDeleteShader(vertexShaderID);
+		GL20.glDeleteShader(fragmentShaderID);
+		GL20.glDetachShader(programID, vertexShaderID);
+		GL20.glDetachShader(programID, fragmentShaderID);
+		
+		int positionLoc = GL20.glGetAttribLocation(programID, "in_Position");
+		//System.out.printf("in_Position location: %d\n", positionLoc);
+		int texCoordsLoc = GL20.glGetAttribLocation(programID, "in_Texcoords");
+		//System.out.printf("in_Texcoords location: %d\n", texCoordsLoc);
+
+		float[] vertices = new float [] {
+				-.5f, .5f,   //V0 - upper left
+				-.5f, -.5f,  //V1 - lower left
+				.5f, -.5f,   //V2 - lower right
+				.5f, .5f,    //V3 - upper right
+				};
+		
+		int[] indices = new int[] {
+				0,1,2,  2,3,0,
+		};
+
+		float w=1f;
+		float h=1f;
+		float[] texCoords = new float[] { 0f,0f,  0f,h,  w,h,  w,0f };
+		
+		//allocate and bind a VAO
+		int vaoID = GL30.glGenVertexArrays();
+		GL30.glBindVertexArray(vaoID);
+
+		//create the vertex data VBO
+		int vboID = GL15.glGenBuffers();
+		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, vboID);
+		FloatBuffer vbuffer = BufferUtils.createFloatBuffer(vertices.length);
+		vbuffer.put(vertices).flip();
+		// Be sure you bind the Vertex Array (glBindVertexArray) before calling
+		// glBufferData! Check for this if java crashes.
+		GL15.glBufferData(GL15.GL_ARRAY_BUFFER, vbuffer, GL15.GL_STATIC_DRAW);
+
+		//create the element (index) data VBO
+		int iboID = GL15.glGenBuffers();
+		GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, iboID);
+		IntBuffer ibuffer = BufferUtils.createIntBuffer(indices.length);
+		ibuffer.put(indices).flip();
+		GL15.glBufferData(GL15.GL_ELEMENT_ARRAY_BUFFER, ibuffer, GL15.GL_STATIC_DRAW);
+
+		final int FLOATS_PER_VERT = 2;
+		final long FIRST_INDEX = 0L;
+		final int TIGHTLY_PACKED = 0;
+
+		GL20.glEnableVertexAttribArray(positionLoc);
+		GL20.glVertexAttribPointer(positionLoc, FLOATS_PER_VERT, GL11.GL_FLOAT, false, TIGHTLY_PACKED, FIRST_INDEX);
+
+		int tcboID = GL15.glGenBuffers();
+		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, tcboID);
+		FloatBuffer tcbuffer = BufferUtils.createFloatBuffer(texCoords.length);
+		tcbuffer.put(texCoords).flip();
+		GL15.glBufferData(GL15.GL_ARRAY_BUFFER, tcbuffer, GL15.GL_STATIC_DRAW);
+		
+		GL20.glEnableVertexAttribArray(texCoordsLoc);
+		GL20.glVertexAttribPointer(texCoordsLoc, FLOATS_PER_VERT, GL11.GL_FLOAT, false, TIGHTLY_PACKED, FIRST_INDEX);
+		
+		final int FORMAT = GL11.GL_RGBA;
+		final int INTERNAL_FORMAT = GL11.GL_RGBA;
+		final int LEVEL = 0;
+		final int size=31;
+
+		int texID = GL11.glGenTextures();
+		GL11.glBindTexture(GL11.GL_TEXTURE_2D, texID);
+
+		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL11.GL_REPEAT);
+		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL11.GL_REPEAT);
+		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
+		//GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
+		GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
+
+		GL11.glTexImage2D(GL11.GL_TEXTURE_2D, LEVEL, INTERNAL_FORMAT, size, size, 0, 
+				FORMAT, GL11.GL_UNSIGNED_BYTE, rainbowTexture(size));		
+
+		GL11.glClearColor(.5f, .5f, .5f, 1f);
+
+		while(!Display.isCloseRequested()) {
+			GL11.glClear(GL11.GL_COLOR_BUFFER_BIT|GL11.GL_DEPTH_BUFFER_BIT);
+
+			GL20.glUseProgram(programID);
+			GL11.glDrawElements(GL11.GL_TRIANGLES, indices.length, GL11.GL_UNSIGNED_INT, FIRST_INDEX);
+			GL20.glUseProgram(0);
+
+			Display.update();
+			Display.sync(120);
+		}
+
+		// All this unbinding, deleting, disabling, and destroying isn't strictly necessary
+		// unless you need to free memory. It seems particularly unnecessary during shutdown/cleanup
+		// but I've included it so you can see how it's done.
+		GL15.glBindBuffer(GL15.GL_ARRAY_BUFFER, 0);
+		GL15.glDeleteBuffers(vboID);
+		GL15.glDeleteBuffers(tcboID);
+		GL15.glBindBuffer(GL15.GL_ELEMENT_ARRAY_BUFFER, 0);
+		GL15.glDeleteBuffers(iboID);
+		GL20.glDisableVertexAttribArray(positionLoc);
+		GL20.glDisableVertexAttribArray(texCoordsLoc);
+	    GL30.glDeleteVertexArrays(vaoID);
+		GL20.glDeleteProgram(programID);
+		Display.destroy();
+	}
+
+	private static int loadShader(String shaderSource, int type) {
+		int shaderID = GL20.glCreateShader(type);
+		GL20.glShaderSource(shaderID, shaderSource);
+		GL20.glCompileShader(shaderID);
+		if (GL20.glGetShader(shaderID, GL20.GL_COMPILE_STATUS)==GL11.GL_FALSE) {
+			System.out.println(GL20.glGetShaderInfoLog(shaderID, 500));
+			System.err.println("Could not compile shader");
+			System.exit(-1);
+		}
+		return shaderID;
+	}
+	
+	private static ByteBuffer rainbowTexture(int size) {
+		byte[] data = new byte[4*size*size];
+		int index=0;
+		double d=0;
+		
+		try {
+			while(true) {
+				d+=.0972;
+				if (d>2*Math.PI) d-=2*Math.PI;
+				for (int k=0; k<size/16; k++) {
+					data[index++]=(byte)((-Math.sin(d*2)+1)*128.);  //Red
+					data[index++]=(byte)((Math.sin(d)+1)*64.);      //Green
+					data[index++]=(byte)((-Math.sin(d*3)+1)*128.);  //Blue
+					data[index++]=(byte)0xff;					    //Alpha
+				}
+			}
+		} catch(ArrayIndexOutOfBoundsException e) {}
+		ByteBuffer buffer = BufferUtils.createByteBuffer(data.length);
+		buffer.put(data);
+		buffer.flip();
+		return buffer;
+	}
+}
